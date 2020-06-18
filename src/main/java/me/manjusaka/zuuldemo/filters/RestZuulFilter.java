@@ -5,6 +5,9 @@ import com.netflix.zuul.context.RequestContext;
 import com.netflix.zuul.exception.ZuulException;
 import org.apache.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.util.PathMatcher;
+import org.springframework.web.util.UrlPathHelper;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -12,7 +15,13 @@ import static org.springframework.cloud.netflix.zuul.filters.support.FilterConst
 import static org.springframework.cloud.netflix.zuul.filters.support.FilterConstants.PRE_TYPE;
 
 @Component
-public class CustomZuulFilter extends ZuulFilter {
+public class RestZuulFilter extends ZuulFilter {
+    private PathMatcher pathMatcher = new AntPathMatcher();
+    private UrlPathHelper urlPathHelper = new UrlPathHelper();
+
+    private String dispatcherServletPath = "/";
+
+
     /**
      * to classify a filter by type. Standard types in Zuul are "pre" for pre-routing filtering,
      * "route" for routing to an origin, "post" for post-routing filters, "error" for error handling.
@@ -34,7 +43,7 @@ public class CustomZuulFilter extends ZuulFilter {
      */
     @Override
     public int filterOrder() {
-        return PRE_DECORATION_FILTER_ORDER + 2;
+        return PRE_DECORATION_FILTER_ORDER + 1;
     }
 
     /**
@@ -44,7 +53,13 @@ public class CustomZuulFilter extends ZuulFilter {
      */
     @Override
     public boolean shouldFilter() {
-        return true;
+        RequestContext ctx = RequestContext.getCurrentContext();
+        if (ctx.getResponseStatusCode() == HttpStatus.SC_UNAUTHORIZED) {
+            return false;
+        }
+        final String requestURI = this.urlPathHelper
+                .getPathWithinApplication(ctx.getRequest());
+        return this.pathMatcher.match("/abc ", requestURI);
     }
 
     /**
@@ -56,20 +71,15 @@ public class CustomZuulFilter extends ZuulFilter {
     @Override
     public Object run() throws ZuulException {
         RequestContext ctx = RequestContext.getCurrentContext();
-        if (ctx.getRouteHost() == null) {
-            return null;
-        }
         HttpServletRequest httpServletRequest = ctx.getRequest();
-        String token = httpServletRequest.getParameter("token");
-        if (!"abc".equals(token)) {
-            ctx.setRouteHost(null);
+        ctx.setRouteHost(null);
+
 //            ctx.set(ZuulConstant.SERVICE_ID_KEY, null);
-            // Set fallback response.
-            ctx.setResponseBody("auth failed");
-            ctx.setResponseStatusCode(HttpStatus.SC_UNAUTHORIZED);
-            // Set Response ContentType
-            ctx.getResponse().setContentType("application/json; charset=utf-8");
-        }
+        // Set fallback response.
+        ctx.setResponseBody("{\"abc\":1}");
+        ctx.setResponseStatusCode(HttpStatus.SC_OK);
+        // Set Response ContentType
+        ctx.getResponse().setContentType("application/json; charset=utf-8");
         return null;
     }
 }
