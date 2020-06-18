@@ -1,0 +1,5 @@
+zuul:
+  routes:
+    demo:
+      path: /abc/**
+      url: https://www.baidu.com
